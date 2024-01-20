@@ -15,11 +15,11 @@ const config = {
 }
 
 config.tokens = {}
-config.tokens[config.wethAddress] = { symbol: 'WETH' }
-config.tokens['0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0'] = { symbol: 'UNI' }
-config.tokens['0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9'] = { symbol: 'WBTC' }
-config.tokens['0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9'] = { symbol: 'USDT' }
-config.tokens['0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512'] = { symbol: 'USDC' }
+config.tokens[config.wethAddress] = { symbol: 'WETH', decimals: 18 }
+config.tokens['0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0'] = { symbol: 'UNI', decimals: 18 }
+config.tokens['0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9'] = { symbol: 'WBTC', decimals: 18 }
+config.tokens['0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9'] = { symbol: 'USDT', decimals: 18 }
+config.tokens['0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512'] = { symbol: 'USDC', decimals: 18 }
 
 config.pools = {}
 config.pools["0x4c3FC63156Ae8130903504408182e8e89e220454"] = { symbol: 'USDT/USDC' }

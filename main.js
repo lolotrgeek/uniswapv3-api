@@ -1,10 +1,8 @@
 import { ethers } from "ethers"
 import config from "./config.js"
 import { TickMath, encodeSqrtRatioX96, nearestUsableTick } from '@uniswap/v3-sdk'
-import debounce from './src/lib/debounce'
-import { uint256Max, feeToSpacing } from './src/lib/constants'
-import computePoolAddress from './src/lib/computePoolAddress'
-import PathFinder from './src/lib/pathFinder'
+import { uint256Max, feeToSpacing } from './src/lib/constants.js'
+import PathFinder from './src/lib/pathFinder.js'
 
 // Account
 const address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
@@ -35,9 +33,17 @@ const q96 = 2 ** 96
 const countPathTokens = path => (path.length - 1) / 2 + 1
 const priceToSqrtP = price => encodeSqrtRatioX96(price, 1)
 const priceToTick = price => TickMath.getTickAtSqrtRatio(priceToSqrtP(price))
+const tickToPrice = tick => TickMath.getSqrtRatioAtTick(tick)
 const pathToTypes = path => (["address"].concat(new Array(countPathTokens(path) - 1).fill(["uint24", "address"]).flat()))
 const tokenByAddress = async (address, tokens) => tokens.filter(t => t.address === address)[0]
 const sqrtPriceToPrice = sqrtp => (sqrtp / q96) ** 2
+const getTickAtSqrtPrice = sqrtPriceX96 => Math.floor(Math.log((sqrtPriceX96 / q96) ** 2) / Math.log(1.0001))
+
+const caclulateAmount1 = (amount0, price) => {
+    //TODO: will need to adjust for decimals
+    let m_inverse = 1 / price
+
+}
 
 /**
 * Load pairs from a Factory address by scanning for 'PoolCreated' events.
@@ -130,7 +136,7 @@ const getPools = async () => {
 const getPool = async (token0, token1, fee) => {
     if (!token0 || !token1) return
     // const poolAddress = computePoolAddress(config.factoryAddress, token0, token1, fee)
-    const poolAddress = "0x0787a9981bfDEBe5730DF0Ce71A181F50d178fc9" 
+    const poolAddress = "0x0787a9981bfDEBe5730DF0Ce71A181F50d178fc9"
     const provider = new ethers.getDefaultProvider(rpc)
     let walletConnected = wallet.connect(provider)
     const pool = new ethers.Contract(poolAddress, config.ABIs.Pool, walletConnected)
@@ -146,8 +152,8 @@ const getLiquidity = async (token0, token1, fee) => {
 
 /**
  * 
- * @param {*} token0 
- * @param {*} token1 
+ * @param {*} token0 address 
+ * @param {*} token1 address 
  * @param {*} fee 
  * @docs https://uniswapv3book.com/milestone_1/deployment.html?highlight=current%20price#current-tick-and-price
  * @returns 
@@ -160,14 +166,33 @@ const getPrice = async (token0, token1, fee) => {
         if (!has_slot0) return { "error": "Pool does not have slot0" }
         const quote = await pool.slot0()
         console.log(quote)
+
+
+        let Decimal0 = config.tokens[token0].decimals
+        let Decimal1 = config.tokens[token1].decimals
+
+        console.log(Decimal0, Decimal1)
+
         let sqrtPriceX96 = Number(quote[0])
         let tickSpacing = 60
         let tick = Number(quote[1])
+
         let nearest_tick = Math.round(tick / tickSpacing) * tickSpacing
         let tickedsqrtP = Math.floor((1.0001 ** (nearest_tick / 2)) * q96)
         let tickedPrice = sqrtPriceToPrice(tickedsqrtP)
-        let price = sqrtPriceToPrice(sqrtPriceX96) 
-        console.log('price', price, tickedPrice )
+
+        let ticksqrtP = Math.floor((1.0001 ** (tick / 2)) * q96)
+        let tickPrice = sqrtPriceToPrice(ticksqrtP)
+
+        const buyOneOfToken0 = ((sqrtPriceX96 / q96) ** 2) / (10 ** Decimal1 / 10 ** Decimal0)
+        const buyOneOfToken1 = (1 / buyOneOfToken0)
+
+        console.log("price of token0 in value of token1 : " + buyOneOfToken0.toString())
+        console.log("price of token1 in value of token0 : " + buyOneOfToken1.toString())
+
+
+        let price = sqrtPriceToPrice(sqrtPriceX96)
+        console.log('price', price, 'tickPrice', tickPrice, 'nearest tick', nearest_tick)
         // return price - tickedPrice + price
         return price
     } catch (err) {
@@ -175,32 +200,210 @@ const getPrice = async (token0, token1, fee) => {
         return { "error": err }
     }
 }
-
-/**
- * 
- * @param {*} token0 
- * @param {*} token1 
- * @param {*} fee 
- * @docs https://uniswapv3book.com/milestone_1/deployment.html?highlight=current%20price#current-tick-and-price
- * @returns 
- */
-const getTickSpacing = async (token0, token1, fee) => {
-    try {
-        if (!token0 || !token1) return
-        const pool = await getPool(token0, token1, fee)
-        console.log(pool)
-        const has_tickSpacing = pool.interface.fragments.find(f => f.name === 'tickSpacing')
-        if (!has_tickSpacing) return { "error": "Pool does not have tickSpacing" }
-        const quote = await pool.tickSpacing()
-        let tick = Number(quote)
-        console.log(tick)
-        return tick
-    } catch (err) {
-        console.error(err)
-        return { "error": err }
-    }
+const liquidity0 = (amount, pa, pb) => {
+    if (pa > pb) pa, pb = pb, pa
+    return (amount * (pa * pb) / q96) / (pb - pa)
+}
+const liquidity1 = (amount, pa, pb) => {
+    if (pa > pb) pa, pb = pb, pa
+    return amount * q96 / (pb - pa)
+}
+function calcLiquidity(amount0, sqrtp_current, sqrt_p_upper, sqrt_p_lower) {
+    let liq0 = liquidity0(amount0, sqrtp_current, sqrt_p_upper)
+    let liq1 = liquidity1(amount0, sqrtp_current, sqrt_p_lower)
+    return Math.min(liq0, liq1)
 }
 
+function mulDiv(x, y, z) {
+    return Math.floor((x * y) / z);
+}
+
+function getLiquidityForAmount0(sqrtPriceAX96, sqrtPriceBX96, amount0) {
+    if (sqrtPriceAX96 > sqrtPriceBX96) {
+        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96];
+    }
+
+    const Q96 = Math.pow(2, 96);
+    const intermediate = mulDiv(sqrtPriceAX96, sqrtPriceBX96, Q96);
+    const liquidity = mulDiv(amount0, intermediate, sqrtPriceBX96 - sqrtPriceAX96);
+
+    return liquidity;
+}
+
+function getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceBX96, amount1) {
+    if (sqrtPriceAX96 > sqrtPriceBX96) {
+        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96];
+    }
+
+    const Q96 = Math.pow(2, 96);
+    const liquidity = mulDiv(amount1, Q96, sqrtPriceBX96 - sqrtPriceAX96);
+
+    return liquidity;
+}
+
+function getLiquidityForAmounts(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, amount0, amount1) {
+    if (sqrtPriceAX96 > sqrtPriceBX96) {
+        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96];
+    }
+
+    let liquidity;
+    if (sqrtPriceX96 <= sqrtPriceAX96) {
+        liquidity = getLiquidityForAmount0(sqrtPriceAX96, sqrtPriceBX96, amount0);
+    } else if (sqrtPriceX96 <= sqrtPriceBX96) {
+        const liquidity0 = getLiquidityForAmount0(sqrtPriceX96, sqrtPriceBX96, amount0);
+        const liquidity1 = getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceX96, amount1);
+        console.log("liquidity0", liquidity0, "liquidity1", liquidity1)
+        if (liquidity0 < liquidity1) {
+            console.log("Choosing liquidity0")
+            liquidity = liquidity0;
+        }
+        else {
+            console.log("Choosing liquidity1")
+            liquidity = liquidity1;
+        }
+        // liquidity = liquidity0 < liquidity1 ? liquidity0 : liquidity1;
+    } else {
+        liquidity = getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceBX96, amount1);
+    }
+
+    return liquidity;
+}
+
+function getLiquidityAmounts(liquidity,sqrtPriceX96,tickLow,tickHigh,Decimal0,Decimal1){
+	let sqrtRatioA = Math.sqrt(1.0001**tickLow);
+	let sqrtRatioB = Math.sqrt(1.0001**tickHigh);
+	let currentTick = getTickAtSqrtPrice(sqrtPriceX96);
+       let sqrtPrice = sqrtPriceX96 / q96;
+	let amount0 = 0;
+	let amount1 = 0;
+	if(currentTick < tickLow){
+		amount0 = Math.floor(liquidity*((sqrtRatioB-sqrtRatioA)/(sqrtRatioA*sqrtRatioB)));
+	}
+	else if(currentTick >= tickHigh){
+		amount1 = Math.floor(liquidity*(sqrtRatioB-sqrtRatioA));
+	}
+	else if(currentTick >= tickLow && currentTick < tickHigh){ 
+		amount0 = Math.floor(liquidity*((sqrtRatioB-sqrtPrice)/(sqrtPrice*sqrtRatioB)));
+		amount1 = Math.floor(liquidity*(sqrtPrice-sqrtRatioA));
+	}
+
+	let amount0Human = (amount0/(10**Decimal0)).toFixed(Decimal0);
+	let amount1Human = (amount1/(10**Decimal1)).toFixed(Decimal1);
+
+	console.log("Amount Token0 in lowest decimal: "+amount0);
+	console.log("Amount Token1 in lowest decimal: "+amount1);
+	console.log("Amount Token0 : "+amount0Human);
+	console.log("Amount Token1 : "+amount1Human);
+	return [amount0, amount1]
+}
+
+async function getTokenAmounts(amount0, token0, token1, lowerPrice, upperPrice) {
+
+    if (!token0 || !token1) return
+    let fee = 3000
+    let Decimal0 = config.tokens[token0].decimals
+    let Decimal1 = config.tokens[token1].decimals
+
+    const pool = await getPool(token0, token1, fee)
+    const has_slot0 = pool.interface.fragments.find(f => f.name === 'slot0')
+    if (!has_slot0) return { "error": "Pool does not have slot0" }
+    const quote = await pool.slot0()
+    console.log(quote)
+
+    let sqrtPriceX96 = Number(quote[0])
+    let price = sqrtPriceToPrice(sqrtPriceX96)
+    let currentTick = Number(quote[1])
+
+    const lowerPriceTick = priceToTick(lowerPrice)
+    const currentPriceTick = priceToTick(price)
+    const upperPriceTick = priceToTick(upperPrice)
+
+    const tickLow = nearestUsableTick(lowerPriceTick, feeToSpacing[fee])
+    const tickCurrent = nearestUsableTick(currentTick, feeToSpacing[fee])
+    const tickHigh = nearestUsableTick(upperPriceTick, feeToSpacing[fee])
+
+    const _min = (100 - 0.5) / 100 // TODO: pass slippage to this... 
+    const amount0Min = amount0 * _min 
+    
+    
+    amount0 = Number(amount0)
+    let adjusted_amount0 = amount0 - amount0Min
+    amount0 = amount0 + adjusted_amount0
+    console.log("amount0", amount0, amount0Min)
+    // price = sqrtPriceToPrice(Math.sqrt(1.0001 ** tickCurrent) * q96)
+    console.log("price", price)
+    // based on the code from:
+    // https://ethereum.stackexchange.com/questions/99425/calculate-deposit-amount-when-adding-to-a-liquidity-pool-in-uniswap-v3
+
+    const base_liquidity = 1 * ((Math.sqrt(price) * Math.sqrt(upperPrice)) / (Math.sqrt(upperPrice) - Math.sqrt(price)))
+    const adjusted_price = base_liquidity * (Math.sqrt(price) - Math.sqrt(lowerPrice))
+
+    const liquidity = amount0 * (Math.sqrt(price) * Math.sqrt(upperPrice) / (Math.sqrt(upperPrice) - Math.sqrt(price)))
+    console.log("Liquidity: ", liquidity)
+
+    console.log("Current Tick: " + tickCurrent, "Tick Low: " + tickLow, "Tick High: " + tickHigh)
+    let sqrtPrice = Math.sqrt(1.0001 ** tickCurrent)
+    let sqrtRatioA = Math.sqrt(1.0001 ** tickLow)
+    let sqrtRatioB = Math.sqrt(1.0001 ** tickHigh)
+
+	let amount0_bound = 0;
+	let amount1_bound = 0;
+	if(currentTick < tickLow){
+		amount0_bound = liquidity*((sqrtRatioA*sqrtRatioB)/(sqrtRatioB-sqrtRatioA))
+	}
+	else if(currentTick >= tickHigh){
+		amount1_bound = liquidity*(sqrtRatioB-sqrtRatioA)
+	}
+	else if(currentTick >= tickLow && currentTick < tickHigh){ 
+        amount0_bound = liquidity*((sqrtRatioA*sqrtRatioB)/(sqrtRatioB-sqrtRatioA))
+		amount1_bound = liquidity*(sqrtPrice-sqrtRatioA)
+	}
+
+	console.log("Amount Token0 in lowest decimal: "+amount0_bound)
+	console.log("Amount Token1 in lowest decimal: "+amount1_bound)
+
+    const amount1Min = amount1_bound * _min 
+    console.log("amount1Min", amount1Min)
+
+    let amount1 = amount1_bound
+
+    let sqrtRatioAX96 = sqrtRatioA * q96
+    let sqrtRatioBX96 = sqrtRatioB * q96
+    let liquidity_modifier = liquidity * (sqrtPriceX96 - sqrtRatioAX96) / q96
+    
+    
+    console.log("base_liquidity", base_liquidity)
+    console.log("Liquidity Modifier: ", liquidity_modifier)
+    console.log("Adjusted Price: ", adjusted_price, "price", price)
+
+    
+    // TODO: calculate slippage range from above
+
+    // console.log("amount0Min", amount0Min, "amount1Min", amount1Min, "upperMin", upperMin, "lowerMin", lowerMin)
+    
+
+    const Liquidity = getLiquidityForAmounts(sqrtPriceX96, sqrtRatioAX96, sqrtRatioBX96, amount0, amount1)
+    console.log("Liquidity: ", Liquidity)
+
+    const L = getLiquidityAmounts(Liquidity, sqrtPriceX96, tickLow, tickHigh, Decimal0, Decimal1)
+    console.log("L", L)
+    
+    // let liquidity
+    if (adjusted_price > upperPrice) {
+        let liquidity_y =  amount0 - adjusted_amount0
+        L[1] = (liquidity_y * adjusted_price) + (lowerPrice * liquidity_y * 0.5)
+    }
+    // else {
+    //     liquidity = amount0 * (Math.sqrt(adjusted_price) * Math.sqrt(upperPrice)) / (Math.sqrt(upperPrice) - Math.sqrt(adjusted_price))
+    //     console.log("Liquidity: ", liquidity)
+    //     const liquidity_y = liquidity * (Math.sqrt(price) - Math.sqrt(lowerPrice))
+    //     amount1 = liquidity_y
+    // }
+    
+
+
+    return L[1]
+}
 
 
 /**
@@ -222,45 +425,50 @@ const addLiquidity = async (token0, token1, amount0, fee, lowerPrice, upperPrice
         let walletConnected = wallet.connect(provider)
         const manager = new ethers.Contract(config.managerAddress, config.ABIs.Manager, walletConnected)
         const Token0 = new ethers.Contract(token0, config.ABIs.ERC20, walletConnected)
-        const Token1 = new ethers.Contract(token1, config.ABIs.ERC20, walletConnected)        
-
-        const pairs = await loadPairs()
-        const pathFinder = new PathFinder(pairs)
-        const path = pathFinder.findPath(token0, token1)
-
+        const Token1 = new ethers.Contract(token1, config.ABIs.ERC20, walletConnected)
         const price = await getPrice(token0, token1, fee)
-
-        const median_amount1 = (Math.sqrt(price/amount0)+price).toString()
-        const low_amount1 = (Math.sqrt(lowerPrice/amount0)+(price*amount0)).toString()
-        console.log(low_amount1)
-        const amount0Desired = ethers.parseEther(amount0)
-        const amount1Desired = ethers.parseEther(low_amount1)
-
-        console.log(typeof amount1Desired, amount1Desired)
-        if (amount1Desired < 0) return 'Invalid amount!'
-        if (amount1Desired === amount0Desired) return 'Same amount!'
 
         const _min = (100 - slippage) * 100
         console.log("min:", _min)
 
-        const amount0Min = ethers.parseEther((amount0 * _min / 10000).toString())
-        const amount1Min = ethers.parseEther((low_amount1 * _min / 10000).toString())
+        const amount0Desired = ethers.parseEther(amount0)
+        let amount0min = amount0 * _min / 10000
+        const amount0Min = ethers.parseEther(amount0min.toString())
+
+        // const tickSpacing = await getTickSpacing(token0, token1, fee)
+
+
+        // https://ethereum.stackexchange.com/questions/99425/calculate-deposit-amount-when-adding-to-a-liquidity-pool-in-uniswap-v3
+
+        const liquidity_x = 1 * Math.sqrt(price) * Math.sqrt(upperPrice) / (Math.sqrt(upperPrice) - Math.sqrt(price))
+        const adjusted_price = liquidity_x * (Math.sqrt(price) - Math.sqrt(lowerPrice))
+        console.log('liquidity_x', liquidity_x, 'adjusted_price', adjusted_price)
+
+        const liquidity = amount0 * Math.sqrt(adjusted_price) * Math.sqrt(upperPrice) / (Math.sqrt(upperPrice) - Math.sqrt(adjusted_price))
+        // const amount1 = (liquidity * (Math.sqrt(price) - Math.sqrt(lowerPrice)))
+        const amount1 = 40486
+
+        const amount1Desired = ethers.parseEther(amount1.toString())
+        const amount1Min = ethers.parseEther((amount1 * _min / 10000).toString())
 
         console.log(amount0Min, amount1Min)
+        console.log('amount1', amount1)
+        if (amount1Desired < 0) return 'Invalid amount!'
+        if (amount1Desired === amount0Desired) return 'Same amount!'
 
         // check if amount0Min and amount1Min are smaller than uint256
-        if (amount0Min > uint256Max ) return 'Amoun0tMin too large!'
+        if (amount0Min > uint256Max) return 'Amoun0tMin too large!'
         if (amount1Min > uint256Max) return 'Amount1Min too large!'
         // check if amount0Min and amount1Min are greater that uint256
         if (amount0Min < -uint256Max) return 'Amount0Min too small!'
-        if ( amount1Min < -uint256Max) return 'Amount1Min too small!'
+        if (amount1Min < -uint256Max) return 'Amount1Min too small!'
 
         // check if amount0Desired and amount1Desired are larger than uint256
         if (amount0Desired > uint256Max || amount1Desired > uint256Max) return 'Amount too large!'
         // check if amount0Desired and amount1Desired are smaller than uint256
         if (amount0Desired < -uint256Max || amount1Desired < -uint256Max) return 'Amount too small!'
 
-        if (amount1Desired < amount1Min) return `Will Slip! Amount1 ${amount1Desired.toString()} smaller than ${amount1Min.toString()}!`
+        if (amount1Desired < amount1Min) return `Will Slip! Amount1 ${amount1Desired.toString()} larger than ${amount1Min.toString()}!`
         if (amount0Desired < amount0Min) return 'Will Slip! Amount0 too small!'
 
         // const fee = path[1]
@@ -285,9 +493,9 @@ const addLiquidity = async (token0, token1, amount0, fee, lowerPrice, upperPrice
             fee,
             lowerTick,
             upperTick,
-            amount0Desired, 
-            amount1Desired, 
-            amount0Min, 
+            amount0Desired,
+            amount1Desired,
+            amount0Min,
             amount1Min
         }
 
@@ -316,7 +524,7 @@ const addLiquidity = async (token0, token1, amount0, fee, lowerPrice, upperPrice
         let walletConnected = wallet.connect(provider)
         const manager = new ethers.Contract(config.managerAddress, config.ABIs.Manager, walletConnected)
         let error
-        
+
         if (err && err.info && err.info.error && err.info.error.data) {
 
             try {
@@ -345,7 +553,6 @@ const addLiquidity = async (token0, token1, amount0, fee, lowerPrice, upperPrice
     }
 }
 
-
 /**
  * Swaps tokens by calling Manager contract. Before swapping, asks users to approve spending of tokens.
  */
@@ -373,12 +580,10 @@ const swap = async (token0, token1, amount0, amount1) => {
     }
 }
 
-
-
 /**
  * Fetches available liquidity from a position.
  */
-const getAvailableLiquidity = debounce((amount, isLower) => {
+const getAvailableLiquidity = (amount, isLower) => {
     const lowerTick = priceToTick(isLower ? amount : lowerPrice)
     const upperTick = priceToTick(isLower ? upperPrice : amount)
 
@@ -394,6 +599,6 @@ const getAvailableLiquidity = debounce((amount, isLower) => {
     manager.getPosition(params)
         .then(position => setAvailableAmount(position.liquidity.toString()))
         .catch(err => console.error(err))
-}, 500)
+}
 
-export { loadPairs, pairsToTokens, updateAmountOut, setTransactionFee, getPools, getPool, getPrice, getTickSpacing, getLiquidity, addLiquidity }
+export { loadPairs, pairsToTokens, updateAmountOut, setTransactionFee, getPools, getPool, getPrice, getTokenAmounts, getLiquidity, addLiquidity }
