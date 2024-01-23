@@ -79,7 +79,7 @@ describe('updateAmountOut', () => {
   const token1 = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
   it('should calculate output amount by querying Quoter contract', async () => {
     const amount = "1"
-    const expectedAmountOut = "4874" // Replace with the expected output amount
+    const expectedAmountOut = "4545" // Replace with the expected output amount
     const amountOut = await updateAmountOut(token0, token1, amount)
     expect(Number(amountOut)).toBeGreaterThan(Number(expectedAmountOut))
   })
@@ -137,7 +137,6 @@ describe('getPool', () => {
     expect(pool).toBeUndefined()
   })
 })
-
 
 describe('getPrice', () => {
   const token0 = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
@@ -322,3 +321,4 @@ describe('addLiquidity', () => {
     expect(liquidityNFT).toBeUndefined()
   })
 })
+

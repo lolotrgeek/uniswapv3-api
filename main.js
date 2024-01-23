@@ -179,76 +179,76 @@ const getPrice = async (token0, token1, fee) => {
 }
 
 function mulDiv(x, y, z) {
-    return Math.floor((x * y) / z);
+    return Math.floor((x * y) / z)
 }
 
 function getLiquidityForAmount0(sqrtPriceAX96, sqrtPriceBX96, amount0) {
     if (sqrtPriceAX96 > sqrtPriceBX96) {
-        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96];
+        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96]
     }
 
-    const Q96 = Math.pow(2, 96);
-    const intermediate = mulDiv(sqrtPriceAX96, sqrtPriceBX96, Q96);
-    const liquidity = mulDiv(amount0, intermediate, sqrtPriceBX96 - sqrtPriceAX96);
+    const Q96 = Math.pow(2, 96)
+    const intermediate = mulDiv(sqrtPriceAX96, sqrtPriceBX96, Q96)
+    const liquidity = mulDiv(amount0, intermediate, sqrtPriceBX96 - sqrtPriceAX96)
 
-    return liquidity;
+    return liquidity
 }
 
 function getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceBX96, amount1) {
     if (sqrtPriceAX96 > sqrtPriceBX96) {
-        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96];
+        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96]
     }
 
-    const Q96 = Math.pow(2, 96);
-    const liquidity = mulDiv(amount1, Q96, sqrtPriceBX96 - sqrtPriceAX96);
+    const Q96 = Math.pow(2, 96)
+    const liquidity = mulDiv(amount1, Q96, sqrtPriceBX96 - sqrtPriceAX96)
 
-    return liquidity;
+    return liquidity
 }
 
 function getLiquidityForAmounts(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, amount0, amount1) {
     if (sqrtPriceAX96 > sqrtPriceBX96) {
-        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96];
+        [sqrtPriceAX96, sqrtPriceBX96] = [sqrtPriceBX96, sqrtPriceAX96]
     }
 
-    let liquidity;
+    let liquidity
     if (sqrtPriceX96 <= sqrtPriceAX96) {
-        liquidity = getLiquidityForAmount0(sqrtPriceAX96, sqrtPriceBX96, amount0);
+        liquidity = getLiquidityForAmount0(sqrtPriceAX96, sqrtPriceBX96, amount0)
     } else if (sqrtPriceX96 <= sqrtPriceBX96) {
-        const liquidity0 = getLiquidityForAmount0(sqrtPriceX96, sqrtPriceBX96, amount0);
-        const liquidity1 = getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceX96, amount1);
+        const liquidity0 = getLiquidityForAmount0(sqrtPriceX96, sqrtPriceBX96, amount0)
+        const liquidity1 = getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceX96, amount1)
         console.log("liquidity0", liquidity0, "liquidity1", liquidity1)
         if (liquidity0 < liquidity1) {
             console.log("Choosing liquidity0")
-            liquidity = liquidity0;
+            liquidity = liquidity0
         }
         else {
             console.log("Choosing liquidity1")
-            liquidity = liquidity1;
+            liquidity = liquidity1
         }
-        // liquidity = liquidity0 < liquidity1 ? liquidity0 : liquidity1;
+        // liquidity = liquidity0 < liquidity1 ? liquidity0 : liquidity1
     } else {
-        liquidity = getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceBX96, amount1);
+        liquidity = getLiquidityForAmount1(sqrtPriceAX96, sqrtPriceBX96, amount1)
     }
 
-    return liquidity;
+    return liquidity
 }
 
 function getLiquidityAmounts(liquidity, sqrtPriceX96, tickLow, tickHigh) {
-    let sqrtRatioA = Math.sqrt(1.0001 ** tickLow);
-    let sqrtRatioB = Math.sqrt(1.0001 ** tickHigh);
-    let currentTick = getTickAtSqrtPrice(sqrtPriceX96);
-    let sqrtPrice = sqrtPriceX96 / q96;
-    let amount0 = 0;
-    let amount1 = 0;
+    let sqrtRatioA = Math.sqrt(1.0001 ** tickLow)
+    let sqrtRatioB = Math.sqrt(1.0001 ** tickHigh)
+    let currentTick = getTickAtSqrtPrice(sqrtPriceX96)
+    let sqrtPrice = sqrtPriceX96 / q96
+    let amount0 = 0
+    let amount1 = 0
     if (currentTick < tickLow) {
-        amount0 = Math.floor(liquidity * ((sqrtRatioB - sqrtRatioA) / (sqrtRatioA * sqrtRatioB)));
+        amount0 = Math.floor(liquidity * ((sqrtRatioB - sqrtRatioA) / (sqrtRatioA * sqrtRatioB)))
     }
     else if (currentTick >= tickHigh) {
-        amount1 = Math.floor(liquidity * (sqrtRatioB - sqrtRatioA));
+        amount1 = Math.floor(liquidity * (sqrtRatioB - sqrtRatioA))
     }
     else if (currentTick >= tickLow && currentTick < tickHigh) {
-        amount0 = Math.floor(liquidity * ((sqrtRatioB - sqrtPrice) / (sqrtPrice * sqrtRatioB)));
-        amount1 = Math.floor(liquidity * (sqrtPrice - sqrtRatioA));
+        amount0 = Math.floor(liquidity * ((sqrtRatioB - sqrtPrice) / (sqrtPrice * sqrtRatioB)))
+        amount1 = Math.floor(liquidity * (sqrtPrice - sqrtRatioA))
     }
 
     console.log("Amount Token0 in lowest decimal: " + amount0)
@@ -299,8 +299,8 @@ async function getTokenAmounts(amount0, token0, token1, lowerPrice, upperPrice) 
     let sqrtRatioA = Math.sqrt(1.0001 ** tickLow)
     let sqrtRatioB = Math.sqrt(1.0001 ** tickHigh)
 
-    let amount0_bound = 0;
-    let amount1_bound = 0;
+    let amount0_bound = 0
+    let amount1_bound = 0
     if (currentTick < tickLow) {
         amount0_bound = liquidity * ((sqrtRatioA * sqrtRatioB) / (sqrtRatioB - sqrtRatioA))
     }
@@ -390,7 +390,7 @@ async function getAmount1(amount0, token0, token1, lowerPrice, upperPrice, fee =
     // because amount0 stays static if real price is larger than the upperPrice then we get real liquidity linearly in order to get enough liquidity to account for slippage
     if (adjusted_price > upperPrice) {
         return (amount0 * adjusted_price) + (lowerPrice * amount0 * slippage)
-    } 
+    }
     // otherwise calculate real liquidity hyperbolically using Ticks
     else {
         const lowerPriceTick = priceToTick(lowerPrice)
@@ -400,12 +400,12 @@ async function getAmount1(amount0, token0, token1, lowerPrice, upperPrice, fee =
         const tickHigh = nearestUsableTick(upperPriceTick, feeToSpacing[fee])
 
         // have to adjust amount0 for slippage so virtual liquidity is not too low
-        const _min = (100 - slippage) / 100 
+        const _min = (100 - slippage) / 100
         const amount0Min = amount0 * _min
         amount0 = Number(amount0)
         let adjusted_amount0 = amount0 - amount0Min
         amount0 = amount0 + adjusted_amount0
-    
+
         // calculate virtual liquidity from real liquidity
         const liquidity = amount0 * (Math.sqrt(price) * Math.sqrt(upperPrice) / (Math.sqrt(upperPrice) - Math.sqrt(price)))
         let sqrtPrice = Math.sqrt(1.0001 ** tickCurrent)
@@ -423,10 +423,10 @@ async function getAmount1(amount0, token0, token1, lowerPrice, upperPrice, fee =
         let amount1 = amount1_bound
         let sqrtRatioAX96 = sqrtRatioA * q96
         let sqrtRatioBX96 = sqrtRatioB * q96
-    
+
         // get L2 adjusted for slippage
         const Liquidity = getLiquidityForAmounts(sqrtPriceX96, sqrtRatioAX96, sqrtRatioBX96, amount0, amount1)
-        const L = getLiquidityAmounts(Liquidity, sqrtPriceX96, tickLow, tickHigh)        
+        const L = getLiquidityAmounts(Liquidity, sqrtPriceX96, tickLow, tickHigh)
         return L[1]
     }
 }
@@ -518,11 +518,14 @@ const addLiquidity = async (token0, token1, amount0, fee, lowerPrice, upperPrice
 
         if (allowance0 < amount0Desired) {
             const approve0 = await Token0.approve(config.managerAddress, uint256Max)
-            console.log('approve0', approve0)
+            const approve0_receipt = approve0.wait()
+            console.log('approve0', approve0, approve0_receipt)
+
         }
         if (allowance1 < amount1Desired) {
             const approve1 = await Token1.approve(config.managerAddress, uint256Max)
-            console.log('approve1', approve1)
+            const approve1_receipt = approve1.wait()
+            console.log('approve1', approve1, approve1_receipt)
         }
         console.log('minting...')
         const tx = await manager.mint(mintParams)
@@ -565,6 +568,53 @@ const addLiquidity = async (token0, token1, amount0, fee, lowerPrice, upperPrice
 }
 
 /**
+ * Fetches available liquidity from a position.
+ */
+const getAvailableLiquidity = (amount, isLower) => {
+    const lowerTick = priceToTick(isLower ? amount : lowerPrice)
+    const upperTick = priceToTick(isLower ? upperPrice : amount)
+
+    const params = {
+        tokenA: token0.address,
+        tokenB: token1.address,
+        fee: fee,
+        owner: account,
+        lowerTick: nearestUsableTick(lowerTick, feeToSpacing[fee]),
+        upperTick: nearestUsableTick(upperTick, feeToSpacing[fee]),
+    }
+
+    manager.getPosition(params)
+        .then(position => setAvailableAmount(position.liquidity.toString()))
+        .catch(err => console.error(err))
+}
+
+const removeLiquidity = async (token0, token1, amount, fee, lowerPrice, upperPrice) => {
+    try {
+        if (!token0 || !token1) return
+
+        const lowerTick = nearestUsableTick(priceToTick(lowerPrice), feeToSpacing[fee])
+        const upperTick = nearestUsableTick(priceToTick(upperPrice), feeToSpacing[fee])
+
+        const pool = await getPool(token0, token1, fee)
+
+        const tx = await pool.burn(lowerTick, upperTick, amount)
+        console.log(tx)
+        const receipt = await tx.wait()
+        if (!receipt.events[0] || receipt.events[0].event !== "Burn") {
+            throw Error("Missing Burn event after burning!")
+        }
+        const amount0Burned = receipt.events[0].args.amount0
+        const amount1Burned = receipt.events[0].args.amount1
+        const collect_tx = await pool.collect(account, lowerTick, upperTick, amount0Burned, amount1Burned)
+        const collect_recepit = await collect_tx.wait()
+    } catch (error) {
+        console.error(error)
+    }
+
+}
+
+
+/**
  * Swaps tokens by calling Manager contract. Before swapping, asks users to approve spending of tokens.
  */
 const swap = async (token0, token1, amount0, amount1) => {
@@ -591,25 +641,6 @@ const swap = async (token0, token1, amount0, amount1) => {
     }
 }
 
-/**
- * Fetches available liquidity from a position.
- */
-const getAvailableLiquidity = (amount, isLower) => {
-    const lowerTick = priceToTick(isLower ? amount : lowerPrice)
-    const upperTick = priceToTick(isLower ? upperPrice : amount)
 
-    const params = {
-        tokenA: token0.address,
-        tokenB: token1.address,
-        fee: fee,
-        owner: account,
-        lowerTick: nearestUsableTick(lowerTick, feeToSpacing[fee]),
-        upperTick: nearestUsableTick(upperTick, feeToSpacing[fee]),
-    }
 
-    manager.getPosition(params)
-        .then(position => setAvailableAmount(position.liquidity.toString()))
-        .catch(err => console.error(err))
-}
-
-export { loadPairs, pairsToTokens, updateAmountOut, setTransactionFee, getPools, getPool, getPrice, getTokenAmounts, getAmount1, getLiquidity, addLiquidity }
+export { loadPairs, pairsToTokens, updateAmountOut, setTransactionFee, getPools, getPool, getPrice, getTokenAmounts, getAmount1, getLiquidity, addLiquidity, getAvailableLiquidity, removeLiquidity, swap }
